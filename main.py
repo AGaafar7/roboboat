@@ -1,10 +1,8 @@
 import argparse
-import math
 import time
 from collections import deque
 
 import cv2
-import numpy as np
 
 from perception.vision_pipeline import VisionPipeline
 from navigation.gate_navigation import GateNavigator
@@ -39,28 +37,44 @@ def initialize_camera(index):
     return cam
 
 
+def infer_indicator_color(detections):
+    """
+    Determine the color indicator (red or green) next to a yellow buoy.
+    Whichever color has more total detected area wins.
+    Returns None if neither is visible.
+    """
+    red_area   = sum(d["area"] for d in detections if d["color"] == "red")
+    green_area = sum(d["area"] for d in detections if d["color"] == "green")
+
+    if red_area == 0 and green_area == 0:
+        return None
+    return "red" if red_area >= green_area else "green"
+
+
 class GateTracker:
     """
-    Turns per-frame red/green detections into:
-      - gate_detected
-      - gate_entry       (boat between buoys)
-      - gate_passed      (boat has moved past the pair)
-      - exit_gate_detected / exit_gate_passed
+    Turns per-frame red/green detections into gate-entry / gate-passed
+    signals. Tracks ONE gate pair at a time; call reset() after the
+    first pair is passed so the next pair is picked up cleanly.
     """
 
-    PASS_AREA_FACTOR = 2.6     # area growth ratio that means "passed"
+    PASS_AREA_FACTOR = 2.6
     PASS_FRAMES = 3
 
     def __init__(self):
         self.prev_pair_area = None
         self.pass_streak = 0
 
+    def reset(self):
+        self.prev_pair_area = None
+        self.pass_streak = 0
+
     def _pair(self, detections):
-        reds = [d for d in detections if d["color"] == "red"]
+        reds   = [d for d in detections if d["color"] == "red"]
         greens = [d for d in detections if d["color"] == "green"]
         if not reds or not greens:
             return None
-        r = max(reds, key=lambda d: d["area"])
+        r = max(reds,   key=lambda d: d["area"])
         g = max(greens, key=lambda d: d["area"])
         return r, g
 
@@ -102,9 +116,8 @@ class GateTracker:
 
 class AudioAlertDetector:
     """
-    Minimal fidgetting-free stub for the Harbor Alert task.
-    Replace with your real .wav FFT pipeline. Emits an alert dict when
-    a matching blast pattern is confirmed.
+    Stub for the Harbor Alert task.
+    Replace with a real audio-FFT pipeline when hardware is ready.
     """
 
     def __init__(self, nominal_hz=(600, 800, 1000), tolerance=0.05):
@@ -113,11 +126,9 @@ class AudioAlertDetector:
         self.last_alert = None
 
     def poll(self):
-        # STUB — a real implementation reads from an audio device,
-        # computes FFT, counts blasts, and returns:
-        #   {"blast_count": 1, "frequency": 800.0,
-        #    "detection_time": time.time()}
-        return self.last_alert
+        alert = self.last_alert
+        self.last_alert = None
+        return alert
 
     def inject_test_alert(self, blast_count, frequency):
         self.last_alert = {
@@ -132,7 +143,7 @@ class AudioAlertDetector:
 # --------------------------------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mission", type=int, choices=[1,2,3,4,5,6],
+    parser.add_argument("--mission", type=int, choices=[1, 2, 3, 4, 5, 6],
                         default=None,
                         help="Initial mission (can be started from GCS)")
     parser.add_argument("--no-display", action="store_true")
@@ -151,6 +162,9 @@ def main():
     gate_tracker     = GateTracker()
     audio            = AudioAlertDetector()
 
+    active_mission_num   = args.mission
+    pre_override_mission = None
+
     try:
         print("Initializing RoboBoat system...")
 
@@ -163,8 +177,8 @@ def main():
 
         bridge.start()
 
-        if args.mission is not None:
-            mission_manager.start_mission(args.mission)
+        if active_mission_num is not None:
+            mission_manager.start_mission(active_mission_num)
 
         print("Control loop running. Awaiting GCS arm command…")
 
@@ -183,30 +197,41 @@ def main():
                     armed = True
                     esp32.arm()
                     bridge.push_event({"event": "armed"})
+
                 elif cmd.kind == "disarm":
                     armed = False
                     esp32.disarm()
                     bridge.push_event({"event": "disarmed"})
+
                 elif cmd.kind == "estop":
                     estop = True
                     armed = False
                     esp32.emergency_stop()
                     safety.emergency_stop()
                     bridge.push_event({"event": "emergency_stop"})
+
                 elif cmd.kind == "clear_faults":
                     estop = False
                     safety.reset()
                     esp32.send({"type": "clear_faults"})
                     bridge.push_event({"event": "faults_cleared"})
+
                 elif cmd.kind == "start_mission":
                     n = int(cmd.payload.get("mission", 0))
                     if 1 <= n <= 6:
                         mission_manager.start_mission(n)
+                        active_mission_num = n
+                        pre_override_mission = None
+                        gate_tracker.reset()
                         bridge.push_event({"event": "mission_started",
                                            "mission": n})
+
                 elif cmd.kind == "stop_mission":
                     mission_manager.stop()
+                    active_mission_num = None
+                    pre_override_mission = None
                     bridge.push_event({"event": "mission_stopped"})
+
                 cmd = bridge.poll_command()
 
             # ---------- Perception ----------
@@ -223,61 +248,84 @@ def main():
             yellow_target = None
             for d in dets1:
                 if d["color"] == "yellow":
-                    yellow_target = {
-                        "position": d["center"],
-                        "indicator_color": self._infer_indicator(dets1),
-                    }
+                    color = infer_indicator_color(dets1)
+                    if color is not None:
+                        yellow_target = {
+                            "position": d["center"],
+                            "indicator_color": color,
+                        }
                     break
 
             audio_alert = audio.poll()
 
+            active = mission_manager.active_mission
+
+            # ---------- Harbor alert override ----------
+            if (audio_alert is not None
+                    and active_mission_num not in (None, 6)):
+                print("[OVERRIDE] Harbor alert — switching to Mission 6")
+                if pre_override_mission is None:
+                    pre_override_mission = active_mission_num
+                mission_manager.stop()
+                mission_manager.start_mission(6)
+                active_mission_num = 6
+                gate_tracker.reset()
+                active = mission_manager.active_mission
+                bridge.push_event({
+                    "event": "harbor_alert_override",
+                    "blast_count": audio_alert.get("blast_count"),
+                    "frequency": audio_alert.get("frequency"),
+                })
+
+            # ---------- Exit-gate phase detection ----------
+            in_exit_phase = (
+                active is not None
+                and active.state in ("SEARCHING_EXIT_GATE", "CROSSING_EXIT")
+            )
+
             mission_inputs = {
                 "detections": dets1,
                 "camera_2_detections": dets2,
-                "heading": 0.0,          # TODO: wire from IMU/GPS
+                "heading": 0.0,
                 "position": None,
                 "time": time.time(),
 
-                # Gate tracking
                 "gate_detected": gate_state["gate_detected"],
-                "gate_entry": gate_state["gate_entry"],
-                "gate_passed": gate_state["gate_passed"],
-                "exit_gate_detected": False,
-                "exit_gate_passed": False,
+                "gate_entry":    gate_state["gate_entry"],
+                "gate_passed":   gate_state["gate_passed"],
 
-                # Channel / debris
+                "exit_gate_detected":
+                    gate_state["gate_detected"] if in_exit_phase else False,
+                "exit_gate_passed":
+                    gate_state["gate_passed"]   if in_exit_phase else False,
+
                 "channel_entered": False,
                 "debris_field_entered": False,
                 "debris_field_exit_complete": False,
                 "channel_exit_complete": False,
 
-                # Circle helpers
                 "circle_complete": False,
                 "survivor_circle_complete": False,
 
-                # Sprint
                 "yellow_target": yellow_target,
                 "gate_exit_complete": False,
 
-                # Marina
                 "marina_entered": False,
                 "slips": [],
                 "at_slip_approach": False,
                 "docking_complete": False,
 
-                # Supply
                 "target": None,
                 "aligned_for_delivery": False,
                 "delivery_complete": False,
 
-                # Harbor alert
                 "audio_alert": audio_alert,
                 "response_complete": False,
             }
 
             # ---------- Mission update ----------
             result = None
-            if mission_manager.active_mission is not None:
+            if active is not None:
                 result = mission_manager.update(mission_inputs)
                 if result and result.status == "completed":
                     bridge.push_event({
@@ -285,20 +333,28 @@ def main():
                         "message": result.message,
                     })
                     mission_manager.stop()
+                    was_override = (active_mission_num == 6
+                                    and pre_override_mission is not None)
+                    if was_override:
+                        mission_manager.start_mission(pre_override_mission)
+                        active_mission_num = pre_override_mission
+                        pre_override_mission = None
+                    else:
+                        active_mission_num = None
                     result = None
+                    active = mission_manager.active_mission
 
             command = result.command if result else NavigationCommand()
 
             # ---------- Mission-specific navigation ----------
-            active = mission_manager.active_mission
             if active is not None:
-                if args.mission == 1 and active.state in (
+                if active_mission_num == 1 and active.state in (
                     "APPROACHING_GATE", "CROSSING_ENTRY"
                 ):
                     command = gate_navigator.calculate_command(
                         dets1, f1.shape[1]
                     )
-                elif args.mission == 2 and active.state in (
+                elif active_mission_num == 2 and active.state in (
                     "TRANSIT_CHANNEL", "SCANNING_DEBRIS", "RETURNING"
                 ):
                     command, obstacles = obstacle_avoid.apply(
@@ -309,6 +365,13 @@ def main():
                             "event": "obstacle_avoided",
                             "count": len(obstacles),
                         })
+
+            # ---------- Reset tracker after entry pair passed ----------
+            if (active_mission_num == 1
+                    and active is not None
+                    and active.state == "CROSSING_ENTRY"
+                    and gate_state["gate_passed"]):
+                gate_tracker.reset()
 
             # ---------- Safety + arming gate ----------
             command = safety.filter_command(command)
@@ -322,19 +385,19 @@ def main():
             bridge.publish_telemetry({
                 "armed": armed,
                 "estop": estop,
-                "mission": args.mission,
+                "mission": active_mission_num,
                 "mission_state": active.state if active else "idle",
                 "surge": command.surge,
                 "yaw": command.yaw,
                 "gate_detected": gate_state["gate_detected"],
                 "detections": len(dets1),
-                "fps": round(1.0 / max(0.001, sum(loop_times) / len(loop_times)), 1),
+                "fps": round(1.0 / max(0.001,
+                          sum(loop_times) / len(loop_times)), 1),
             })
 
             # ---------- Display ----------
             if not args.no_display:
-                cv2.imshow("Camera 1",
-                           vision.draw(f1, dets1))
+                cv2.imshow("Camera 1", vision.draw(f1, dets1))
                 cv2.imshow("Camera 2", f2)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -356,7 +419,8 @@ def main():
             esp32.close()
         if camera_1: camera_1.release()
         if camera_2: camera_2.release()
-        cv2.destroyAllWindows()
+        if not args.no_display:
+            cv2.destroyAllWindows()
         print("Done.")
 
 

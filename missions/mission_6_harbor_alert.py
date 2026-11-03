@@ -1,3 +1,5 @@
+import time
+
 from missions.mission_common import MissionResult, MissionLogger
 from navigation.command import NavigationCommand
 from config import MAX_SURGE
@@ -12,6 +14,7 @@ class HarborAlertMission:
 
     ALLOWED_FREQUENCIES = (600, 800, 1000)
     TOLERANCE = 0.05
+    RESPOND_TIMEOUT_S = 25.0
 
     def __init__(self):
         self.logger = MissionLogger()
@@ -20,6 +23,7 @@ class HarborAlertMission:
         self.detected_frequency = None
         self.blast_count = None
         self.detection_time = None
+        self.respond_start_time = None
 
     def start(self):
         self.state = "LISTENING"
@@ -27,9 +31,9 @@ class HarborAlertMission:
         self.detected_frequency = None
         self.blast_count = None
         self.detection_time = None
+        self.respond_start_time = None
         self.logger.record("mission_6_started")
 
-    # ------------------------------------------------------------------
     def _validate_alert(self, alert):
         count = alert.get("blast_count")
         freq = alert.get("frequency")
@@ -44,8 +48,9 @@ class HarborAlertMission:
                 return nominal
         return None
 
-    # ------------------------------------------------------------------
     def update(self, inputs):
+        now = inputs.get("time", time.time())
+
         # ---------- LISTENING ----------
         if self.state == "LISTENING":
             alert = inputs.get("audio_alert")
@@ -63,12 +68,13 @@ class HarborAlertMission:
 
             self.blast_count = alert["blast_count"]
             self.detected_frequency = alert["frequency"]
-            self.detection_time = alert.get("detection_time")
+            self.detection_time = alert.get("detection_time", now)
             self.selected_zone = (
                 "EMERGENCY_RESPONSE_ZONE"
                 if self.blast_count == 1
                 else "MARINA"
             )
+            self.respond_start_time = now
             self.logger.record(
                 "harbor_alert_detected",
                 blast_count=self.blast_count,
@@ -90,13 +96,20 @@ class HarborAlertMission:
 
         # ---------- RESPONDING ----------
         if self.state == "RESPONDING":
-            if inputs.get("response_complete", False):
+            if self.respond_start_time is None:
+                self.respond_start_time = now
+            elapsed = now - self.respond_start_time
+
+            if (inputs.get("response_complete", False)
+                    or elapsed > self.RESPOND_TIMEOUT_S):
                 self.state = "COMPLETED"
                 self.logger.record(
                     "harbor_alert_response_completed",
                     response_zone=self.selected_zone,
                     frequency=self.detected_frequency,
                     blast_count=self.blast_count,
+                    elapsed_s=elapsed,
+                    via_timeout=elapsed > self.RESPOND_TIMEOUT_S,
                 )
                 return MissionResult(
                     status="completed",

@@ -12,7 +12,8 @@ class ObjectDetector:
 
             except ImportError:
                 raise RuntimeError(
-                    "Install ultralytics to use YOLO"
+                    "Install ultralytics to use YOLO:  "
+                    "pip install ultralytics"
                 )
 
     def detect(self, frame):

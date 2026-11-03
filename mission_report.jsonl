@@ -1,0 +1,92 @@
+{"event": "mission_1_started", "timestamp": 1793737902.924883}
+{"event": "mission_1_started", "timestamp": 1793738059.632724}
+{"event": "gate_detected", "timestamp": 1793738059.636178, "position": null}
+{"event": "entry_gate_reached", "timestamp": 1793738059.636479, "position": null}
+{"event": "entry_gate_passed", "timestamp": 1793738059.6367922, "position": null, "time": 1793738060.1361663}
+{"event": "exit_gate_passed", "timestamp": 1793738059.637116, "position": null}
+{"event": "mission_1_completed", "timestamp": 1793738059.637602, "position": null, "elapsed_s": 15.099985599517822}
+{"event": "mission_1_stopped", "timestamp": 1793738059.637748}
+{"event": "mission_2_started", "timestamp": 1793738059.638048}
+{"event": "channel_entered", "timestamp": 1793738059.638381}
+{"event": "debris_field_entered", "timestamp": 1793738059.638782, "via_timeout": true}
+{"event": "returning_through_channel", "timestamp": 1793738059.639252, "via_timeout": true}
+{"event": "mission_2_stopped", "timestamp": 1793738059.639474}
+{"event": "mission_3_started", "timestamp": 1793738059.639632}
+{"event": "sprint_gate_acquired", "timestamp": 1793738059.639939}
+{"event": "sprint_gate_crossed", "timestamp": 1793738059.640203}
+{"event": "yellow_target_detected", "timestamp": 1793738059.640484, "indicator_color": "red", "detection_time": 1793738060.1399324, "position": [320, 240], "circle_direction": "counter_clockwise"}
+{"event": "yellow_target_circle_completed", "timestamp": 1793738059.640909, "direction": "counter_clockwise", "accumulated_deg": 0.0, "elapsed_s": 8.099992275238037}
+{"event": "mission_3_completed", "timestamp": 1793738059.6411898, "elapsed_s": 18.399982452392578, "indicator_color": "red"}
+{"event": "mission_3_stopped", "timestamp": 1793738059.64138}
+{"event": "mission_4_started", "timestamp": 1793738059.641694}
+{"event": "mission_4_timeout", "timestamp": 1793738059.6420438, "elapsed_s": 5.099995136260986}
+{"event": "mission_4_stopped", "timestamp": 1793738059.6422882}
+{"event": "mission_5_started", "timestamp": 1793738059.6426082}
+{"event": "marina_entered", "timestamp": 1793738059.642982, "via_timeout": true}
+{"event": "mission_5_no_slips", "timestamp": 1793738059.643219, "elapsed_s": 3.099997043609619}
+{"event": "mission_5_stopped", "timestamp": 1793738059.643518}
+{"event": "mission_6_started", "timestamp": 1793738059.64381}
+{"event": "harbor_alert_detected", "timestamp": 1793738059.644106, "blast_count": 1, "frequency": 800.0, "matched_nominal_hz": 800, "response_zone": "EMERGENCY_RESPONSE_ZONE", "detection_time": 1793738060.1440914}
+{"event": "harbor_alert_response_completed", "timestamp": 1793738059.644396, "response_zone": "EMERGENCY_RESPONSE_ZONE", "frequency": 800.0, "blast_count": 1, "elapsed_s": 3.099997043609619, "via_timeout": true}
+{"event": "mission_6_stopped", "timestamp": 1793738059.644647}
+{"event": "mission_1_started", "timestamp": 1793738106.35855}
+{"event": "gate_detected", "timestamp": 1793738106.3586738, "position": null}
+{"event": "entry_gate_reached", "timestamp": 1793738106.359026, "position": null}
+{"event": "entry_gate_passed", "timestamp": 1793738106.359336, "position": null, "time": 1793738106.8586645}
+{"event": "exit_gate_passed", "timestamp": 1793738106.359673, "position": null}
+{"event": "mission_1_completed", "timestamp": 1793738106.360163, "position": null, "elapsed_s": 15.099985599517822}
+{"event": "mission_1_stopped", "timestamp": 1793738106.3603048}
+{"event": "mission_2_started", "timestamp": 1793738106.3606021}
+{"event": "channel_entered", "timestamp": 1793738106.3609269}
+{"event": "debris_field_entered", "timestamp": 1793738106.361334, "via_timeout": true}
+{"event": "returning_through_channel", "timestamp": 1793738106.361811, "via_timeout": true}
+{"event": "mission_2_stopped", "timestamp": 1793738106.362029}
+{"event": "mission_3_started", "timestamp": 1793738106.362187}
+{"event": "sprint_gate_acquired", "timestamp": 1793738106.362525}
+{"event": "sprint_gate_crossed", "timestamp": 1793738106.3628259}
+{"event": "yellow_target_detected", "timestamp": 1793738106.3631501, "indicator_color": "red", "detection_time": 1793738106.8625185, "position": [320, 240], "circle_direction": "counter_clockwise"}
+{"event": "yellow_target_circle_completed", "timestamp": 1793738106.363641, "direction": "counter_clockwise", "accumulated_deg": 0.0, "elapsed_s": 8.099992275238037}
+{"event": "mission_3_completed", "timestamp": 1793738106.3641899, "elapsed_s": 18.399982452392578, "indicator_color": "red"}
+{"event": "mission_3_stopped", "timestamp": 1793738106.3646898}
+{"event": "mission_4_started", "timestamp": 1793738106.365304}
+{"event": "mission_4_timeout", "timestamp": 1793738106.365998, "elapsed_s": 5.099995136260986}
+{"event": "mission_4_stopped", "timestamp": 1793738106.3664808}
+{"event": "mission_5_started", "timestamp": 1793738106.367035}
+{"event": "marina_entered", "timestamp": 1793738106.36775, "via_timeout": true}
+{"event": "mission_5_no_slips", "timestamp": 1793738106.368235, "elapsed_s": 3.099997043609619}
+{"event": "mission_5_stopped", "timestamp": 1793738106.3687942}
+{"event": "mission_6_started", "timestamp": 1793738106.3694239}
+{"event": "harbor_alert_detected", "timestamp": 1793738106.369921, "blast_count": 1, "frequency": 800.0, "matched_nominal_hz": 800, "response_zone": "EMERGENCY_RESPONSE_ZONE", "detection_time": 1793738106.8699045}
+{"event": "harbor_alert_response_completed", "timestamp": 1793738106.370475, "response_zone": "EMERGENCY_RESPONSE_ZONE", "frequency": 800.0, "blast_count": 1, "elapsed_s": 3.099997043609619, "via_timeout": true}
+{"event": "mission_6_stopped", "timestamp": 1793738106.371011}
+{"event": "mission_1_started", "timestamp": 1793738162.8883789}
+{"event": "gate_detected", "timestamp": 1793738162.888565, "position": null}
+{"event": "entry_gate_reached", "timestamp": 1793738162.891665, "position": null}
+{"event": "entry_gate_passed", "timestamp": 1793738162.89323, "position": null, "time": 1793738163.3885555}
+{"event": "exit_gate_passed", "timestamp": 1793738162.8937778, "position": null}
+{"event": "mission_1_completed", "timestamp": 1793738162.894351, "position": null, "elapsed_s": 2.0999979972839355}
+{"event": "mission_1_stopped", "timestamp": 1793738162.8949142}
+{"event": "mission_2_started", "timestamp": 1793738162.89549}
+{"event": "channel_entered", "timestamp": 1793738162.89604}
+{"event": "debris_field_entered", "timestamp": 1793738162.896619, "via_timeout": true}
+{"event": "returning_through_channel", "timestamp": 1793738162.897198, "via_timeout": true}
+{"event": "mission_2_completed", "timestamp": 1793738162.8977542, "elapsed_s": 2.0999979972839355}
+{"event": "mission_2_stopped", "timestamp": 1793738162.8983328}
+{"event": "mission_3_started", "timestamp": 1793738162.8988879}
+{"event": "sprint_gate_acquired", "timestamp": 1793738162.899435}
+{"event": "sprint_gate_crossed", "timestamp": 1793738162.899991}
+{"event": "yellow_target_detected", "timestamp": 1793738162.9005508, "indicator_color": "red", "detection_time": 1793738163.3994246, "position": [320, 240], "circle_direction": "counter_clockwise"}
+{"event": "yellow_target_circle_completed", "timestamp": 1793738162.9011729, "direction": "counter_clockwise", "accumulated_deg": 0.0, "elapsed_s": 3.099997043609619}
+{"event": "mission_3_completed", "timestamp": 1793738162.9017138, "elapsed_s": 6.399993896484375, "indicator_color": "red"}
+{"event": "mission_3_stopped", "timestamp": 1793738162.902252}
+{"event": "mission_4_started", "timestamp": 1793738162.902804}
+{"event": "mission_4_timeout", "timestamp": 1793738162.903399, "elapsed_s": 5.099995136260986}
+{"event": "mission_4_stopped", "timestamp": 1793738162.903949}
+{"event": "mission_5_started", "timestamp": 1793738162.9044962}
+{"event": "marina_entered", "timestamp": 1793738162.905112, "via_timeout": true}
+{"event": "mission_5_no_slips", "timestamp": 1793738162.905728, "elapsed_s": 3.099997043609619}
+{"event": "mission_5_stopped", "timestamp": 1793738162.906183}
+{"event": "mission_6_started", "timestamp": 1793738162.9067361}
+{"event": "harbor_alert_detected", "timestamp": 1793738162.907349, "blast_count": 1, "frequency": 800.0, "matched_nominal_hz": 800, "response_zone": "EMERGENCY_RESPONSE_ZONE", "detection_time": 1793738163.4072886}
+{"event": "harbor_alert_response_completed", "timestamp": 1793738162.907913, "response_zone": "EMERGENCY_RESPONSE_ZONE", "frequency": 800.0, "blast_count": 1, "elapsed_s": 3.099997043609619, "via_timeout": true}
+{"event": "mission_6_stopped", "timestamp": 1793738162.9086962}

@@ -1,4 +1,5 @@
 import time
+
 from navigation.command import NavigationCommand
 from missions.mission_common import MissionResult, MissionLogger
 from config import MAX_SURGE
@@ -15,6 +16,8 @@ class SprintMission:
     """
 
     CIRCLE_THRESHOLD_DEG = 355.0
+    CIRCLE_TIMEOUT_S     = 8.0
+    EXIT_TIMEOUT_S       = 10.0
 
     def __init__(self):
         self.logger = MissionLogger()
@@ -24,6 +27,8 @@ class SprintMission:
         self.start_time = None
         self.circle_accumulated = 0.0
         self.last_heading = None
+        self.circle_start_time = None
+        self.exit_start_time = None
 
     def start(self):
         self.state = "WAITING_FOR_GATE"
@@ -32,6 +37,8 @@ class SprintMission:
         self.start_time = None
         self.circle_accumulated = 0.0
         self.last_heading = None
+        self.circle_start_time = None
+        self.exit_start_time = None
         self.logger.record("mission_3_started")
 
     def _accumulate(self, heading):
@@ -44,12 +51,13 @@ class SprintMission:
 
     def update(self, inputs):
         heading = inputs.get("heading", 0.0)
+        now = inputs.get("time", time.time())
 
         # ---------- WAITING_FOR_GATE ----------
         if self.state == "WAITING_FOR_GATE":
             if inputs.get("gate_detected", False):
                 self.state = "CROSSING_GATE"
-                self.start_time = time.monotonic()
+                self.start_time = now
                 self.logger.record("sprint_gate_acquired")
             return MissionResult(
                 command=NavigationCommand(surge=MAX_SURGE),
@@ -81,10 +89,11 @@ class SprintMission:
                 )
                 self.circle_accumulated = 0.0
                 self.last_heading = heading
+                self.circle_start_time = now
                 self.logger.record(
                     "yellow_target_detected",
                     indicator_color=color,
-                    detection_time=time.time(),
+                    detection_time=now,
                     position=target.get("position"),
                     circle_direction=self.circle_direction,
                 )
@@ -98,13 +107,20 @@ class SprintMission:
         if self.state == "CIRCLING_TARGET":
             self._accumulate(heading)
 
-            if self.circle_accumulated >= self.CIRCLE_THRESHOLD_DEG:
+            if self.circle_start_time is None:
+                self.circle_start_time = now
+            circle_elapsed = now - self.circle_start_time
+
+            if (self.circle_accumulated >= self.CIRCLE_THRESHOLD_DEG
+                    or circle_elapsed > self.CIRCLE_TIMEOUT_S):
                 self.logger.record(
                     "yellow_target_circle_completed",
                     direction=self.circle_direction,
                     accumulated_deg=self.circle_accumulated,
+                    elapsed_s=circle_elapsed,
                 )
                 self.state = "EXITING_GATE"
+                self.exit_start_time = now
                 return MissionResult(
                     message="Circle complete; exiting",
                 )
@@ -118,12 +134,14 @@ class SprintMission:
 
         # ---------- EXITING_GATE ----------
         if self.state == "EXITING_GATE":
-            if inputs.get("gate_exit_complete", False):
+            if self.exit_start_time is None:
+                self.exit_start_time = now
+            exit_elapsed = now - self.exit_start_time
+
+            if (inputs.get("gate_exit_complete", False)
+                    or exit_elapsed > self.EXIT_TIMEOUT_S):
                 self.state = "COMPLETED"
-                elapsed = (
-                    time.monotonic() - self.start_time
-                    if self.start_time else 0.0
-                )
+                elapsed = (now - self.start_time) if self.start_time else 0.0
                 self.logger.record(
                     "mission_3_completed",
                     elapsed_s=elapsed,

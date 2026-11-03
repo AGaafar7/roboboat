@@ -40,10 +40,7 @@ class ColorClassifier:
 
             scores[color] = np.count_nonzero(mask)
 
-        best_color = max(
-            scores,
-            key=scores.get
-        )
+        best_color = max(scores, key=scores.get)
 
         if scores[best_color] == 0:
             return None

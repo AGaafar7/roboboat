@@ -1,110 +1,113 @@
 from missions.mission_common import MissionResult, MissionLogger
 from navigation.command import NavigationCommand
+from config import MAX_SURGE
 
 
 class HarborAlertMission:
+    """
+    Task 6 — Harbor Alert.
+    Listen for 1 or 2 blast signal (600/800/1000 Hz ±5%).
+    Override current mission and respond to zone.
+    """
 
     ALLOWED_FREQUENCIES = (600, 800, 1000)
+    TOLERANCE = 0.05
 
     def __init__(self):
-
         self.logger = MissionLogger()
         self.state = "LISTENING"
-
         self.selected_zone = None
         self.detected_frequency = None
         self.blast_count = None
+        self.detection_time = None
 
     def start(self):
-
         self.state = "LISTENING"
-
         self.selected_zone = None
         self.detected_frequency = None
         self.blast_count = None
-
+        self.detection_time = None
         self.logger.record("mission_6_started")
 
+    # ------------------------------------------------------------------
+    def _validate_alert(self, alert):
+        count = alert.get("blast_count")
+        freq = alert.get("frequency")
+        if count not in (1, 2):
+            return None
+        if not isinstance(freq, (int, float)):
+            return None
+        for nominal in self.ALLOWED_FREQUENCIES:
+            lo = nominal * (1 - self.TOLERANCE)
+            hi = nominal * (1 + self.TOLERANCE)
+            if lo <= freq <= hi:
+                return nominal
+        return None
+
+    # ------------------------------------------------------------------
     def update(self, inputs):
-
+        # ---------- LISTENING ----------
         if self.state == "LISTENING":
-
             alert = inputs.get("audio_alert")
-
             if alert is None:
                 return MissionResult(
-                    message="Listening for harbor alert"
+                    command=NavigationCommand(surge=MAX_SURGE * 0.4),
+                    message="Listening for harbor alert",
                 )
 
-            count = alert.get("blast_count")
-            frequency = alert.get("frequency")
-
-            if count not in (1, 2):
+            nominal = self._validate_alert(alert)
+            if nominal is None:
                 return MissionResult(
-                    message="Invalid blast count"
+                    message="Invalid alert — ignoring",
                 )
 
-            if not isinstance(frequency, (int, float)):
-                return MissionResult(
-                    message="Invalid audio frequency"
-                )
-
-            valid_frequency = any(
-                nominal * 0.95 <= frequency <= nominal * 1.05
-                for nominal in self.ALLOWED_FREQUENCIES
+            self.blast_count = alert["blast_count"]
+            self.detected_frequency = alert["frequency"]
+            self.detection_time = alert.get("detection_time")
+            self.selected_zone = (
+                "EMERGENCY_RESPONSE_ZONE"
+                if self.blast_count == 1
+                else "MARINA"
             )
-
-            if not valid_frequency:
-                return MissionResult(
-                    message="Alert frequency outside allowed range"
-                )
-
-            self.blast_count = count
-            self.detected_frequency = frequency
-
-            if count == 1:
-                self.selected_zone = "EMERGENCY_RESPONSE_ZONE"
-            else:
-                self.selected_zone = "MARINA"
-
             self.logger.record(
                 "harbor_alert_detected",
-                blast_count=count,
-                frequency=frequency,
+                blast_count=self.blast_count,
+                frequency=self.detected_frequency,
+                matched_nominal_hz=nominal,
                 response_zone=self.selected_zone,
-                detection_time=alert.get("detection_time")
+                detection_time=self.detection_time,
+            )
+            self.state = "RESPONDING"
+            return MissionResult(
+                command=NavigationCommand(surge=MAX_SURGE),
+                message=f"Alert! Responding to {self.selected_zone}",
+                events=[{
+                    "event": "harbor_alert_detected",
+                    "blast_count": self.blast_count,
+                    "zone": self.selected_zone,
+                }],
             )
 
-            self.state = "RESPONDING"
-
+        # ---------- RESPONDING ----------
         if self.state == "RESPONDING":
-
             if inputs.get("response_complete", False):
-
                 self.state = "COMPLETED"
-
                 self.logger.record(
                     "harbor_alert_response_completed",
                     response_zone=self.selected_zone,
                     frequency=self.detected_frequency,
-                    blast_count=self.blast_count
+                    blast_count=self.blast_count,
                 )
-
                 return MissionResult(
                     status="completed",
-                    message=f"Reached {self.selected_zone}"
+                    message=f"Reached {self.selected_zone}",
                 )
-
             return MissionResult(
-                command=NavigationCommand(),
-                message=f"Responding to alert: {self.selected_zone}"
+                command=NavigationCommand(surge=MAX_SURGE),
+                message=f"Navigating to {self.selected_zone}",
             )
 
-        return MissionResult(
-            status="completed",
-            message="Harbor alert mission completed"
-        )
+        return MissionResult(status="completed", message="Mission 6 complete")
 
     def stop(self):
-
         self.logger.record("mission_6_stopped")

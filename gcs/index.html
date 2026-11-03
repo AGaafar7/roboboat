@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>RoboBoat 2026 — GCS</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--bg); color: var(--fg);
+  }
+  header {
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #conn {
+    margin-left: auto; font-size: 12px; padding: 4px 10px;
+    border-radius: 4px; background: #30363d;
+  }
+  #conn.ok { background: #1f4d2b; color: var(--green); }
+  #conn.bad { background: #4d1f1f; color: var(--red); }
+
+  main {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; padding: 16px;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px;
+  }
+  .panel h2 {
+    font-size: 13px; margin: 0 0 12px 0; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    font-family: inherit; font-size: 13px; padding: 10px 16px;
+    border-radius: 4px; border: 1px solid var(--border);
+    background: #21262d; color: var(--fg); cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #30363d; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.arm { border-color: var(--green); color: var(--green); }
+  button.disarm { border-color: var(--yellow); color: var(--yellow); }
+  button.estop {
+    border-color: var(--red); color: var(--red); font-weight: 700;
+    padding: 14px 24px;
+  }
+  button.start { border-color: var(--accent); color: var(--accent); }
+
+  .state {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 8px; margin-top: 16px;
+  }
+  .state div {
+    background: #0d1117; padding: 8px 12px; border-radius: 4px;
+    border: 1px solid var(--border); font-size: 12px;
+  }
+  .state div span { color: var(--muted); }
+  .state div b { color: var(--fg); float: right; }
+
+  .missions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .missions button { text-align: left; padding: 10px; }
+  .missions button .num {
+    display: inline-block; width: 22px; height: 22px;
+    text-align: center; border-radius: 50%; background: #21262d;
+    color: var(--muted); font-size: 12px; line-height: 22px;
+    margin-right: 8px;
+  }
+
+  #log {
+    font-size: 12px; max-height: 320px; overflow-y: auto;
+    background: #0d1117; border-radius: 4px; padding: 8px;
+  }
+  #log .line { padding: 2px 0; }
+  #log .ts { color: var(--muted); }
+  #log .ev { color: var(--accent); }
+  #log .warn { color: var(--yellow); }
+  #log .err { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⌘ RoboBoat 2026 GCS</h1>
+  <div id="conn">disconnected</div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Command</h2>
+    <div class="controls">
+      <button class="arm" id="btnArm">Arm</button>
+      <button class="disarm" id="btnDisarm">Disarm</button>
+      <button class="estop" id="btnEstop">EMERGENCY STOP</button>
+    </div>
+    <div class="state">
+      <div><span>Armed</span><b id="sArmed">–</b></div>
+      <div><span>E-Stop</span><b id="sEstop">–</b></div>
+      <div><span>Mission</span><b id="sMission">–</b></div>
+      <div><span>Mission State</span><b id="sState">–</b></div>
+      <div><span>Surge</span><b id="sSurge">–</b></div>
+      <div><span>Yaw</span><b id="sYaw">–</b></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Missions</h2>
+    <div class="missions">
+      <button data-mission="1"><span class="num">1</span>Evacuation Route & Return</button>
+      <button data-mission="2"><span class="num">2</span>Debris Clearance</button>
+      <button data-mission="3"><span class="num">3</span>Emergency Response Sprint</button>
+      <button data-mission="4"><span class="num">4</span>Supply Drop</button>
+      <button data-mission="5"><span class="num">5</span>Navigate the Marina</button>
+      <button data-mission="6"><span class="num">6</span>Harbor Alert</button>
+    </div>
+    <div class="controls" style="margin-top:12px">
+      <button class="start" id="btnStopMission">Stop Active Mission</button>
+    </div>
+  </section>
+
+  <section class="panel" style="grid-column: 1 / -1;">
+    <h2>Event Log</h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const WS_URL = `ws://${location.hostname || 'localhost'}:8765`;
+  let ws = null;
+  let reconnectTimer = null;
+
+  const $ = id => document.getElementById(id);
+  const conn = $("conn");
+  const logEl = $("log");
+
+  function log(msg, cls = "ev") {
+    const line = document.createElement("div");
+    line.className = "line";
+    const ts = new Date().toLocaleTimeString();
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="${cls}">${msg}</span>`;
+    logEl.prepend(line);
+    while (logEl.childElementCount > 200) {
+      logEl.removeChild(logEl.lastChild);
+    }
+  }
+
+  function setConn(ok) {
+    conn.textContent = ok ? "connected" : "disconnected";
+    conn.className = ok ? "ok" : "bad";
+  }
+
+  function connect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => { setConn(true); log("bridge connected"); };
+    ws.onclose = () => {
+      setConn(false);
+      log("bridge disconnected — retrying", "warn");
+      reconnectTimer = setTimeout(connect, 2000);
+    };
+    ws.onerror = () => {};
+    ws.onmessage = ev => {
+      let m;
+      try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.type === "telemetry") applyTelemetry(m);
+      else if (m.type === "event") handleEvent(m);
+      else if (m.type === "error") log(`bridge error: ${m.message}`, "err");
+      else if (m.type === "ack") log(`ack: ${m.command}`, "ev");
+    };
+  }
+
+  function applyTelemetry(t) {
+    $("sArmed").textContent = t.armed ?? "–";
+    $("sEstop").textContent = t.estop ?? "–";
+    $("sMission").textContent = t.mission ?? "–";
+    $("sState").textContent = t.mission_state ?? "–";
+    $("sSurge").textContent = (t.surge ?? 0).toFixed(3);
+    $("sYaw").textContent = (t.yaw ?? 0).toFixed(3);
+
+    $("btnArm").disabled = !!t.armed || !!t.estop;
+    $("btnDisarm").disabled = !t.armed;
+  }
+
+  function handleEvent(e) {
+    const map = {
+      mission_completed: "ev",
+      mission_started: "ev",
+      hazard_detected: "warn",
+      emergency_stop: "err",
+      command_timeout: "warn",
+    };
+    log(`${e.event || "event"}: ${JSON.stringify(e)}`, map[e.event] || "ev");
+  }
+
+  function send(command, payload = {}) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      log("bridge offline", "err");
+      return;
+    }
+    ws.send(JSON.stringify({ command, payload }));
+  }
+
+  $("btnArm").onclick = () => { send("arm"); log("→ arm"); };
+  $("btnDisarm").onclick = () => { send("disarm"); log("→ disarm"); };
+  $("btnEstop").onclick = () => {
+    if (confirm("EMERGENCY STOP — disarm propulsion?")) {
+      send("estop"); log("→ EMERGENCY STOP", "err");
+    }
+  };
+  $("btnStopMission").onclick = () => { send("stop_mission"); log("→ stop mission"); };
+
+  document.querySelectorAll("[data-mission]").forEach(btn => {
+    btn.onclick = () => {
+      const n = Number(btn.dataset.mission);
+      send("start_mission", { mission: n });
+      log(`→ start mission ${n}`);
+    };
+  });
+
+  connect();
+})();
+</script>
+</body>
+</html>

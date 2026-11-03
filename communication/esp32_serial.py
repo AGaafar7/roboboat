@@ -34,13 +34,11 @@ class ESP32Communication:
             time.sleep(2)
 
             print(f"Connected to ESP32 on {self.port}")
-
             return True
 
         except serial.SerialException as error:
 
             print(f"ESP32 connection failed: {error}")
-
             return False
 
     def send(self, data):
@@ -49,7 +47,6 @@ class ESP32Communication:
             return False
 
         try:
-
             message = json.dumps(data) + "\n"
 
             with self.lock:
@@ -60,7 +57,6 @@ class ESP32Communication:
         except (serial.SerialException, OSError) as error:
 
             print(f"ESP32 send error: {error}")
-
             return False
 
     def send_command(self, surge, yaw):
@@ -73,22 +69,13 @@ class ESP32Communication:
         })
 
     def arm(self):
-
-        return self.send({
-            "type": "arm"
-        })
+        return self.send({"type": "arm"})
 
     def disarm(self):
-
-        return self.send({
-            "type": "disarm"
-        })
+        return self.send({"type": "disarm"})
 
     def emergency_stop(self):
-
-        return self.send({
-            "type": "emergency_stop"
-        })
+        return self.send({"type": "emergency_stop"})
 
     def read_telemetry(self):
 
@@ -98,10 +85,8 @@ class ESP32Communication:
         try:
 
             with self.lock:
-
                 line = self.serial.readline().decode(
-                    "utf-8",
-                    errors="ignore"
+                    "utf-8", errors="ignore"
                 ).strip()
 
             if not line:
@@ -112,7 +97,6 @@ class ESP32Communication:
         except (serial.SerialException, ValueError, OSError) as error:
 
             print(f"ESP32 telemetry error: {error}")
-
             return None
 
     def close(self):
@@ -121,5 +105,4 @@ class ESP32Communication:
 
             self.disarm()
             time.sleep(0.1)
-
             self.serial.close()

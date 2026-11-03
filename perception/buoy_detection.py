@@ -33,26 +33,16 @@ class BuoyDetector:
                     upper
                 )
 
-                mask = cv2.bitwise_or(
-                    mask,
-                    current_mask
-                )
+                mask = cv2.bitwise_or(mask, current_mask)
 
-            kernel = np.ones(
-                (5, 5),
-                np.uint8
+            kernel = np.ones((5, 5), np.uint8)
+
+            mask = cv2.morphologyEx(
+                mask, cv2.MORPH_OPEN, kernel
             )
 
             mask = cv2.morphologyEx(
-                mask,
-                cv2.MORPH_OPEN,
-                kernel
-            )
-
-            mask = cv2.morphologyEx(
-                mask,
-                cv2.MORPH_CLOSE,
-                kernel
+                mask, cv2.MORPH_CLOSE, kernel
             )
 
             contours, _ = cv2.findContours(
@@ -70,22 +60,11 @@ class BuoyDetector:
 
                 x, y, w, h = cv2.boundingRect(contour)
 
-                center_x = x + w // 2
-                center_y = y + h // 2
-
                 detections.append({
-
                     "color": color,
-
                     "bbox": (x, y, w, h),
-
-                    "center": (
-                        center_x,
-                        center_y
-                    ),
-
+                    "center": (x + w // 2, y + h // 2),
                     "area": area
-
                 })
 
         return detections
@@ -93,15 +72,10 @@ class BuoyDetector:
     def draw(self, frame, detections):
 
         colors = {
-
             "red": (0, 0, 255),
-
             "green": (0, 255, 0),
-
             "yellow": (0, 255, 255),
-
             "black": (255, 255, 255)
-
         }
 
         for detection in detections:
@@ -111,11 +85,7 @@ class BuoyDetector:
             color = colors[detection["color"]]
 
             cv2.rectangle(
-                frame,
-                (x, y),
-                (x + w, y + h),
-                color,
-                2
+                frame, (x, y), (x + w, y + h), color, 2
             )
 
             cv2.putText(
@@ -123,9 +93,7 @@ class BuoyDetector:
                 detection["color"],
                 (x, y - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2
+                0.6, color, 2
             )
 
         return frame

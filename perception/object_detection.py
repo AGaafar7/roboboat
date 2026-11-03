@@ -8,11 +8,9 @@ class ObjectDetector:
 
             try:
                 from ultralytics import YOLO
-
                 self.model = YOLO(model_path)
 
             except ImportError:
-
                 raise RuntimeError(
                     "Install ultralytics to use YOLO"
                 )
@@ -22,10 +20,7 @@ class ObjectDetector:
         if self.model is None:
             return []
 
-        results = self.model.predict(
-            frame,
-            verbose=False
-        )
+        results = self.model.predict(frame, verbose=False)
 
         detections = []
 
@@ -38,18 +33,9 @@ class ObjectDetector:
                 )
 
                 detections.append({
-
                     "class_id": int(box.cls[0]),
-
                     "confidence": float(box.conf[0]),
-
-                    "bbox": (
-                        int(x1),
-                        int(y1),
-                        int(x2),
-                        int(y2)
-                    )
-
+                    "bbox": (int(x1), int(y1), int(x2), int(y2))
                 })
 
         return detections

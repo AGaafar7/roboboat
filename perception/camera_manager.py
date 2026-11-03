@@ -18,20 +18,9 @@ class CameraManager:
 
         camera = cv2.VideoCapture(index)
 
-        camera.set(
-            cv2.CAP_PROP_FRAME_WIDTH,
-            CAMERA_WIDTH
-        )
-
-        camera.set(
-            cv2.CAP_PROP_FRAME_HEIGHT,
-            CAMERA_HEIGHT
-        )
-
-        camera.set(
-            cv2.CAP_PROP_FPS,
-            CAMERA_FPS
-        )
+        camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+        camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
 
         if not camera.isOpened():
             camera.release()
@@ -48,7 +37,6 @@ class CameraManager:
 
         if not ret1:
             frame1 = None
-
         if not ret2:
             frame2 = None
 

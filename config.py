@@ -4,7 +4,7 @@
 
 # ESP32 communication
 SERIAL_PORT = "/dev/ttyUSB0"
-SERIAL_BAUD = 115200
+SERIAL_BAUDRATE = 115200
 
 # Cameras
 CAMERA_FRONT_INDEX = 0
@@ -48,14 +48,8 @@ HSV_RANGES = {
     ]
 }
 
-# ESP32 communication
-SERIAL_PORT = "/dev/ttyUSB0"
-SERIAL_BAUDRATE = 115200
-
 # Propulsion safety
 PROPULSION_ARMED_BY_DEFAULT = False
-MAX_SURGE = 0.20
-MAX_YAW = 0.20
 
 # Navigation
 WAYPOINT_ARRIVAL_RADIUS = 3.0

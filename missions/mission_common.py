@@ -8,16 +8,13 @@ from navigation.command import NavigationCommand
 
 @dataclass
 class MissionResult:
-    command: NavigationCommand = field(
-        default_factory=NavigationCommand
-    )
-
+    command: NavigationCommand = field(default_factory=NavigationCommand)
     status: str = "running"
     message: str = ""
     events: list = field(default_factory=list)
-
-    # Optional hardware action, such as a water or ball delivery.
-    action: Optional[dict] = None
+    action: Optional[dict] = None          # e.g. water_delivery, racquetball
+    tier: str = "core"
+    task_badge: Optional[str] = None       # "assessment_discovery" | ...
 
 
 class MissionLogger:

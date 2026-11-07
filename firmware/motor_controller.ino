@@ -5,7 +5,17 @@
 // Configuration
 // --------------------------------------------------
 
-static const unsigned long COMMAND_TIMEOUT_MS = 500;
+// Command timeout: how long the ESP32 waits after the
+// last "command" packet before auto-disarming.
+// 1500 ms gives the Pi time to send a mission command
+// after arming without tripping the watchdog.
+static const unsigned long COMMAND_TIMEOUT_MS = 1500;
+
+// Grace period after "arm" before the command timeout
+// can fire. Prevents an immediate disarm while the Pi
+// is still transitioning from ARMED to sending commands.
+static const unsigned long ARM_GRACE_MS = 2000;
+
 static const int NUM_MOTORS = 4;
 
 // ESC signal pins — SET TO YOUR ACTUAL PINS
@@ -14,10 +24,10 @@ const int ESC_PINS[NUM_MOTORS] = {
 };
 
 // ESC PWM (standard 1000–2000 µs, 1500 µs neutral)
-static const int PWM_MIN_US     = 1100;   // "soft" min, never full reverse at idle
+static const int PWM_MIN_US     = 1100;
 static const int PWM_NEUTRAL_US = 1500;
 static const int PWM_MAX_US     = 1900;
-static const int PWM_FREQ_HZ    = 50;     // 20 ms period
+static const int PWM_FREQ_HZ    = 50;
 
 bool armed = false;
 bool emergencyStop = false;
@@ -26,6 +36,7 @@ float surgeCommand = 0.0;
 float yawCommand = 0.0;
 
 unsigned long lastCommandTime = 0;
+unsigned long armGraceUntil   = 0;
 
 // --------------------------------------------------
 // ESC helpers
@@ -38,19 +49,13 @@ void writeNeutral() {
 }
 
 int mixToPwm(float value) {
-    // value in [-1, 1]
     if (value >= 0.0) {
         return (int)(PWM_NEUTRAL_US + value * (PWM_MAX_US - PWM_NEUTRAL_US));
     }
     return (int)(PWM_NEUTRAL_US + value * (PWM_NEUTRAL_US - PWM_MIN_US));
 }
 
-// Differential mixer: 4 thrusters in an X / rectangle layout.
-//  FL  FR
-//  RL  RR
 void applyMixer(float surge, float yaw) {
-    // Left side gets surge + yaw, right side gets surge - yaw
-    // Reverse yaw sign on rear if your physical layout requires it.
     float left  = constrain(surge + yaw, -1.0f, 1.0f);
     float right = constrain(surge - yaw, -1.0f, 1.0f);
 
@@ -69,6 +74,7 @@ void disarmMotors() {
     armed = false;
     surgeCommand = 0.0;
     yawCommand = 0.0;
+    armGraceUntil = 0;
     writeNeutral();
 }
 
@@ -76,9 +82,22 @@ void disarmMotors() {
 // Command handling
 // --------------------------------------------------
 
+void sendStatus(const char* status) {
+    Serial.print("{\"type\":\"status\",\"status\":\"");
+    Serial.print(status);
+    Serial.println("\"}");
+}
+
+void sendReject(const char* reason) {
+    Serial.print("{\"type\":\"status\",\"status\":\"arm_rejected\",\"reason\":\"");
+    Serial.print(reason);
+    Serial.println("\"}");
+}
+
 void processCommand(const String &input) {
     StaticJsonDocument<256> doc;
-    if (deserializeJson(doc, input)) {
+    DeserializationError err = deserializeJson(doc, input);
+    if (err) {
         Serial.println("{\"type\":\"status\",\"status\":\"invalid_json\"}");
         return;
     }
@@ -88,31 +107,35 @@ void processCommand(const String &input) {
     if (strcmp(type, "emergency_stop") == 0) {
         emergencyStop = true;
         disarmMotors();
-        Serial.println("{\"type\":\"status\",\"status\":\"emergency_stop\"}");
+        sendStatus("emergency_stop");
         return;
     }
 
     if (strcmp(type, "disarm") == 0) {
         disarmMotors();
-        Serial.println("{\"type\":\"status\",\"status\":\"disarmed\"}");
+        sendStatus("disarmed");
         return;
     }
 
     if (strcmp(type, "clear_faults") == 0) {
         emergencyStop = false;
-        Serial.println("{\"type\":\"status\",\"status\":\"faults_cleared\"}");
+        armed = false;
+        armGraceUntil = 0;
+        writeNeutral();
+        sendStatus("faults_cleared");
         return;
     }
 
     if (strcmp(type, "arm") == 0) {
         if (emergencyStop) {
-            Serial.println("{\"type\":\"status\",\"status\":\"arm_rejected\",\"reason\":\"estop_active\"}");
+            sendReject("estop_active");
             return;
         }
         armed = true;
         lastCommandTime = millis();
+        armGraceUntil = millis() + ARM_GRACE_MS;
         writeNeutral();
-        Serial.println("{\"type\":\"status\",\"status\":\"armed\"}");
+        sendStatus("armed");
         return;
     }
 
@@ -129,6 +152,8 @@ void processCommand(const String &input) {
         applyMixer(surgeCommand, yawCommand);
         return;
     }
+
+    Serial.println("{\"type\":\"status\",\"status\":\"unknown_type\"}");
 }
 
 // --------------------------------------------------
@@ -147,7 +172,7 @@ void setup() {
     disarmMotors();
     lastCommandTime = millis();
 
-    Serial.println("{\"type\":\"status\",\"status\":\"ready_disarmed\"}");
+    sendStatus("ready_disarmed");
 }
 
 void loop() {
@@ -157,9 +182,15 @@ void loop() {
         if (input.length() > 0) processCommand(input);
     }
 
-    if (armed && millis() - lastCommandTime > COMMAND_TIMEOUT_MS) {
+    // Command timeout: only active after the arm grace period
+    // has expired. This prevents an immediate disarm right
+    // after the arm command arrives.
+    if (armed
+        && !emergencyStop
+        && millis() > armGraceUntil
+        && millis() - lastCommandTime > COMMAND_TIMEOUT_MS) {
         disarmMotors();
-        Serial.println("{\"type\":\"status\",\"status\":\"command_timeout\"}");
+        sendStatus("command_timeout");
     }
 
     delay(5);

@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>RoboBoat 2026 — GCS</title>
+<title>RoboBoat 2027 — GCS</title>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d;
     --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
     --green: #3fb950; --red: #f85149; --yellow: #d29922;
+    --purple: #bc8cff;
   }
   * { box-sizing: border-box; }
   body {
@@ -41,7 +42,7 @@
     text-transform: uppercase; letter-spacing: 0.05em;
   }
 
-  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   button {
     font-family: inherit; font-size: 13px; padding: 10px 16px;
     border-radius: 4px; border: 1px solid var(--border);
@@ -51,11 +52,24 @@
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   button.arm { border-color: var(--green); color: var(--green); }
   button.disarm { border-color: var(--yellow); color: var(--yellow); }
+  button.clear { border-color: var(--accent); color: var(--accent); }
   button.estop {
     border-color: var(--red); color: var(--red); font-weight: 700;
     padding: 14px 24px;
   }
   button.start { border-color: var(--accent); color: var(--accent); }
+  button.stop { border-color: var(--yellow); color: var(--yellow); }
+
+  select {
+    font-family: inherit; font-size: 13px;
+    background: #0d1117; color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px;
+  }
+  label.field {
+    font-size: 12px; color: var(--muted); display: flex;
+    align-items: center; gap: 6px;
+  }
 
   .state {
     display: grid; grid-template-columns: repeat(2, 1fr);
@@ -68,14 +82,32 @@
   .state div span { color: var(--muted); }
   .state div b { color: var(--fg); float: right; }
 
-  .missions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .missions button { text-align: left; padding: 10px; }
-  .missions button .num {
-    display: inline-block; width: 22px; height: 22px;
-    text-align: center; border-radius: 50%; background: #21262d;
-    color: var(--muted); font-size: 12px; line-height: 22px;
-    margin-right: 8px;
+  .badges { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .badges button {
+    text-align: left; padding: 12px; display: flex;
+    align-items: flex-start; gap: 10px;
   }
+  .badges button .glyph {
+    display: inline-block; width: 28px; height: 28px;
+    text-align: center; border-radius: 50%; background: #21262d;
+    color: var(--accent); font-size: 13px; line-height: 28px;
+    font-weight: 700; flex-shrink: 0;
+  }
+  .badges button .meta { display: flex; flex-direction: column; gap: 2px; }
+  .badges button .meta .title { font-weight: 600; }
+  .badges button .meta .sub { font-size: 11px; color: var(--muted); }
+
+  .tier-bar {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .tier-bar .pill {
+    font-size: 11px; padding: 3px 8px; border-radius: 10px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .tier-bar .pill.core { border-color: var(--green); color: var(--green); }
+  .tier-bar .pill.advanced { border-color: var(--yellow); color: var(--yellow); }
+  .tier-bar .pill.disruptive { border-color: var(--purple); color: var(--purple); }
 
   #log {
     font-size: 12px; max-height: 320px; overflow-y: auto;
@@ -86,48 +118,87 @@
   #log .ev { color: var(--accent); }
   #log .warn { color: var(--yellow); }
   #log .err { color: var(--red); }
+  #log .ok { color: var(--green); }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>⌘ RoboBoat 2026 GCS</h1>
+  <h1>⌘ RoboBoat 2027 GCS</h1>
   <div id="conn">disconnected</div>
 </header>
 
 <main>
+  <!-- ================= COMMAND PANEL ================= -->
   <section class="panel">
     <h2>Command</h2>
     <div class="controls">
-      <button class="arm" id="btnArm">Arm</button>
+      <button class="arm"    id="btnArm">Arm</button>
       <button class="disarm" id="btnDisarm">Disarm</button>
-      <button class="estop" id="btnEstop">EMERGENCY STOP</button>
+      <button class="clear"  id="btnClearFaults">Clear Faults</button>
+      <button class="estop"  id="btnEstop">EMERGENCY STOP</button>
     </div>
     <div class="state">
       <div><span>Armed</span><b id="sArmed">–</b></div>
       <div><span>E-Stop</span><b id="sEstop">–</b></div>
-      <div><span>Mission</span><b id="sMission">–</b></div>
-      <div><span>Mission State</span><b id="sState">–</b></div>
+      <div><span>Badge</span><b id="sBadge">–</b></div>
+      <div><span>Tier</span><b id="sTier">–</b></div>
+      <div><span>Task</span><b id="sTask">–</b></div>
+      <div><span>FPS</span><b id="sFps">–</b></div>
       <div><span>Surge</span><b id="sSurge">–</b></div>
       <div><span>Yaw</span><b id="sYaw">–</b></div>
     </div>
   </section>
 
+  <!-- ================= MISSION BADGES ================= -->
   <section class="panel">
-    <h2>Missions</h2>
-    <div class="missions">
-      <button data-mission="1"><span class="num">1</span>Evacuation Route & Return</button>
-      <button data-mission="2"><span class="num">2</span>Debris Clearance</button>
-      <button data-mission="3"><span class="num">3</span>Emergency Response Sprint</button>
-      <button data-mission="4"><span class="num">4</span>Supply Drop</button>
-      <button data-mission="5"><span class="num">5</span>Navigate the Marina</button>
-      <button data-mission="6"><span class="num">6</span>Harbor Alert</button>
+    <h2>Mission Badges (2027)</h2>
+
+    <div class="tier-bar">
+      <label class="field">Tier:
+        <select id="tierSel">
+          <option value="core">Core</option>
+          <option value="advanced">Advanced</option>
+          <option value="disruptive">Disruptive</option>
+        </select>
+      </label>
+      <span class="pill core">core</span>
+      <span class="pill advanced">advanced</span>
+      <span class="pill disruptive">disruptive</span>
     </div>
+
+    <div class="badges">
+      <button data-badge="assessment_discovery">
+        <span class="glyph">A</span>
+        <span class="meta">
+          <span class="title">Assessment &amp; Discovery</span>
+          <span class="sub">Safe Passage → Emergency Sprint</span>
+        </span>
+      </button>
+
+      <button data-badge="automated_logistics">
+        <span class="glyph">L</span>
+        <span class="meta">
+          <span class="title">Automated Logistics Support</span>
+          <span class="sub">Marina → Delivery Run</span>
+        </span>
+      </button>
+
+      <button data-badge="dynamic_tasking">
+        <span class="glyph">D</span>
+        <span class="meta">
+          <span class="title">Dynamic Tasking</span>
+          <span class="sub">Safe Passage → Sprint → Dynamic Response</span>
+        </span>
+      </button>
+    </div>
+
     <div class="controls" style="margin-top:12px">
-      <button class="start" id="btnStopMission">Stop Active Mission</button>
+      <button class="stop" id="btnStopBadge">Stop Active Badge</button>
     </div>
   </section>
 
+  <!-- ================= EVENT LOG ================= -->
   <section class="panel" style="grid-column: 1 / -1;">
     <h2>Event Log</h2>
     <div id="log"></div>
@@ -164,13 +235,14 @@
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     ws = new WebSocket(WS_URL);
 
-    ws.onopen = () => { setConn(true); log("bridge connected"); };
+    ws.onopen = () => { setConn(true); log("bridge connected", "ok"); };
     ws.onclose = () => {
       setConn(false);
       log("bridge disconnected — retrying", "warn");
       reconnectTimer = setTimeout(connect, 2000);
     };
     ws.onerror = () => {};
+
     ws.onmessage = ev => {
       let m;
       try { m = JSON.parse(ev.data); } catch { return; }
@@ -184,24 +256,51 @@
   function applyTelemetry(t) {
     $("sArmed").textContent = t.armed ?? "–";
     $("sEstop").textContent = t.estop ?? "–";
-    $("sMission").textContent = t.mission ?? "–";
-    $("sState").textContent = t.mission_state ?? "–";
+    $("sBadge").textContent = t.badge ?? "–";
+    $("sTier").textContent  = t.tier  ?? "–";
+    $("sTask").textContent  = t.task  ?? "–";
+    $("sFps").textContent   = t.fps   ?? "–";
     $("sSurge").textContent = (t.surge ?? 0).toFixed(3);
-    $("sYaw").textContent = (t.yaw ?? 0).toFixed(3);
+    $("sYaw").textContent   = (t.yaw   ?? 0).toFixed(3);
 
     $("btnArm").disabled = !!t.armed || !!t.estop;
     $("btnDisarm").disabled = !t.armed;
+
+    if (t.tier && $("tierSel").value !== t.tier) {
+      $("tierSel").value = t.tier;
+    }
   }
 
   function handleEvent(e) {
     const map = {
-      mission_completed: "ev",
-      mission_started: "ev",
-      hazard_detected: "warn",
+      armed: "ok",
+      disarmed: "warn",
       emergency_stop: "err",
       command_timeout: "warn",
+      esp32_status: "ev",
+      esp32_write_failed: "err",
+      arm_failed: "err",
+      badge_started: "ev",
+      badge_stopped: "warn",
+      badge_completed: "ok",
+      badge_error: "err",
+      task_completed: "ok",
+      harbor_alert_override: "warn",
+      obstacle_avoided: "warn",
+      robo_command_rx: "ev",
+      unknown_command: "warn",
+      command_error: "err",
+      mission_error: "err",
+      camera_lost: "warn",
     };
-    log(`${e.event || "event"}: ${JSON.stringify(e)}`, map[e.event] || "ev");
+    const cls = map[e.event] || "ev";
+    // Compact display for esp32_status so the log stays readable
+    if (e.event === "esp32_status") {
+      const reason = e.reason ? ` (${e.reason})` : "";
+      log(`esp32 → ${e.status}${reason}`, cls);
+      return;
+    }
+    log(`${e.event || "event"}: ${JSON.stringify(e)}`, cls);
   }
 
   function send(command, payload = {}) {
@@ -212,22 +311,30 @@
     ws.send(JSON.stringify({ command, payload }));
   }
 
+  // ---------- Command buttons ----------
   $("btnArm").onclick = () => { send("arm"); log("→ arm"); };
   $("btnDisarm").onclick = () => { send("disarm"); log("→ disarm"); };
+  $("btnClearFaults").onclick = () => { send("clear_faults"); log("→ clear faults"); };
   $("btnEstop").onclick = () => {
     if (confirm("EMERGENCY STOP — disarm propulsion?")) {
       send("estop"); log("→ EMERGENCY STOP", "err");
     }
   };
-  $("btnStopMission").onclick = () => { send("stop_mission"); log("→ stop mission"); };
 
-  document.querySelectorAll("[data-mission]").forEach(btn => {
+  // ---------- Mission Badges ----------
+  document.querySelectorAll("[data-badge]").forEach(btn => {
     btn.onclick = () => {
-      const n = Number(btn.dataset.mission);
-      send("start_mission", { mission: n });
-      log(`→ start mission ${n}`);
+      const badge = btn.dataset.badge;
+      const tier = $("tierSel").value;
+      send("start_badge", { badge, tier });
+      log(`→ start ${badge} (${tier})`);
     };
   });
+
+  $("btnStopBadge").onclick = () => {
+    send("stop_badge");
+    log("→ stop badge");
+  };
 
   connect();
 })();

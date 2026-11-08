@@ -37,8 +37,6 @@ class ESP32Communication:
             self.serial = None
             return False
 
-        # ESP32 resets when the port opens; give it time to boot
-        # and emit its ready banner.
         deadline = time.monotonic() + handshake_timeout
         while time.monotonic() < deadline:
             line = self._readline()
@@ -51,7 +49,10 @@ class ESP32Communication:
                 return True
 
         print(f"[ESP32] no ready banner within {handshake_timeout:.1f}s")
-        self.serial.close()
+        try:
+            self.serial.close()
+        except Exception:
+            pass
         self.serial = None
         return False
 
@@ -112,13 +113,9 @@ class ESP32Communication:
         return self.send({"type": "clear_faults"})
 
     # --------------------------------------------------
-    # Telemetry (non-blocking)
+    # Telemetry
     # --------------------------------------------------
     def read_telemetry(self):
-        """
-        Return a dict if the ESP32 sent anything, else None.
-        Also updates self.last_status so main.py can gate on it.
-        """
         parsed = self._readline()
         if parsed is None:
             return None
@@ -134,6 +131,10 @@ class ESP32Communication:
             try:
                 self.disarm()
                 time.sleep(0.1)
-            finally:
+            except Exception:
+                pass
+            try:
                 self.serial.close()
+            except Exception:
+                pass
         self.serial = None

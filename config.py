@@ -24,7 +24,7 @@ ARM_RETRY_DELAY_S = 0.2
 # Cameras
 # --------------------------------------------------
 CAMERA_FRONT_INDEX = 0
-CAMERA_SECONDARY_INDEX = 1
+CAMERA_SECONDARY_INDEX = 2
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
